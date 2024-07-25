@@ -26,8 +26,11 @@ type ListBody struct {
 type Handler func(r *http.Request) (*Response, error)
 
 var (
-	Logger            *slog.Logger
-	Dir               string
+	Logger *slog.Logger
+	Dir    string
+	host   string
+	port   string
+
 	httpRequestsTotal = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "http_requests_total",
@@ -47,16 +50,17 @@ var (
 
 func init() {
 	Logger = slog.New(slog.NewJSONHandler(os.Stdout, nil))
+
+	flag.StringVar(&Dir, "dir", ".", "Directory to serve")
+	flag.StringVar(&port, "port", "80", "Port to listen on")
+	flag.StringVar(&host, "host", "", "Host to listen on")
+
 	prometheus.MustRegister(httpRequestsTotal)
 	prometheus.MustRegister(httpRequestDuration)
 }
 
 func AddFileServer(routes *mux.Router) {
 	routes.PathPrefix("/").HandlerFunc(ServeFile)
-}
-
-func AddMetricsServer(routs *mux.Router) {
-	routs.Methods(http.MethodGet).Path("/metrics").Handler(promhttp.Handler())
 }
 
 func SendFile(handler Handler) http.Handler {
@@ -120,19 +124,16 @@ func ServeFile(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, path)
 }
 
-func Start(handler http.Handler) {
-	var (
-		host, port string
-	)
-
-	flag.StringVar(&Dir, "dir", ".", "Directory to serve")
-	flag.StringVar(&port, "port", "80", "Port to listen on")
-	flag.StringVar(&host, "host", "", "Host to listen on")
-	flag.Parse()
+func Start(handler *mux.Router) {
+	if envHost := os.Getenv("HOST"); envHost != "" {
+		host = envHost
+	}
 
 	if envPort := os.Getenv("PORT"); envPort != "" {
 		port = envPort
 	}
+
+	handler.Methods(http.MethodGet).Path("/metrics").Handler(promhttp.Handler())
 
 	serverAddr := fmt.Sprintf("%s:%s", host, port)
 
