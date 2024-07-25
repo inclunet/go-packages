@@ -133,6 +133,7 @@ func Start(handler *mux.Router) {
 		port = envPort
 	}
 
+	handler.Use(MetricsAndLoggingMiddleware)
 	handler.Methods(http.MethodGet).Path("/metrics").Handler(promhttp.Handler())
 
 	serverAddr := fmt.Sprintf("%s:%s", host, port)
